@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Your Profile - Auth0 Portal</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container">
+      <a class="navbar-brand" href="/">Auth0 Portal</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="/profile">Profile</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/logout">Log Out</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container mt-4">
+    <div class="row">
+      <div class="col-md-4">
+        <div class="card mb-4">
+          <div class="card-header">
+            <h5 class="card-title mb-0">Your Profile</h5>
+          </div>
+          <div class="card-body text-center">
+            <div id="userAvatar" class="mb-3">
+              <div class="avatar-placeholder">
+                <span id="userInitials"></span>
+              </div>
+            </div>
+            <h5 id="userName" class="card-title">Loading...</h5>
+            <p id="userEmail" class="card-text text-muted">Loading...</p>
+          </div>
+          <ul class="list-group list-group-flush">
+            <li class="list-group-item">
+              <strong>Last Login: </strong>
+              <span id="lastLogin">Loading...</span>
+            </li>
+            <li class="list-group-item">
+              <strong>Login Method: </strong>
+              <span id="loginMethod">Loading...</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h5 class="card-title mb-0">Connected Accounts</h5>
+          </div>
+          <ul class="list-group list-group-flush" id="userConnections">
+            <li class="list-group-item text-center">Loading...</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="col-md-8">
+        <h2 class="mb-4">Your Applications</h2>
+        <div class="row g-4" id="appContainer">
+          <div class="col-12 text-center">
+            <div class="spinner-border" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Fetch user profile
+    fetch('/api/user')
+      .then(response => {
+        if (response.ok) {
+          return response.json();
+        }
+        window.location.href = '/login';
+      })
+      .then(user => {
+        console.log('User data:', user);
+        
+        // Update profile info
+        document.getElementById('userName').textContent = user.name;
+        document.getElementById('userEmail').textContent = user.email;
+        
+        // Format and display last login time
+        const lastLoginDate = user.updated_at ? new Date(user.updated_at) : new Date();
+        document.getElementById('lastLogin').textContent = lastLoginDate.toLocaleString();
+        
+        // Set user avatar or initials
+        if (user.picture) {
+          document.getElementById('userAvatar').innerHTML = `<img src="${user.picture}" alt="User Avatar" class="rounded-circle img-fluid avatar-img">`;
+        } else {
+          const initials = user.name
+            .split(' ')
+            .map(part => part.charAt(0))
+            .join('')
+            .toUpperCase();
+          document.getElementById('userInitials').textContent = initials;
+        }
+        
+        // Set login method
+        document.getElementById('loginMethod').textContent = user.sub.split('|')[0] || 'Unknown';
+      })
+      .catch(error => {
+        console.error('Error fetching user profile:', error);
+        alert('Error fetching your profile. Please try again.');
+      });
+    
+    // Fetch user apps and connections
+    fetch('/api/user-apps')
+      .then(response => response.json())
+      .then(data => {
+        console.log('Apps data:', data);
+        const { applications, connections } = data;
+        
+        // Render applications
+        const appContainer = document.getElementById('appContainer');
+        appContainer.innerHTML = '';
+        
+        if (applications.length === 0) {
+          appContainer.innerHTML = `
+            <div class="col-12">
+              <div class="alert alert-info">
+                You don't have any authorized applications yet.
+              </div>
+            </div>
+          `;
+        } else {
+          applications.forEach(app => {
+            const appCard = document.createElement('div');
+            appCard.className = 'col-md-6 col-lg-4';
+            
+            const logoUrl = app.logo_uri || '/default-app-logo.png';
+            const appUrl = app.callback_url || '#';
+            
+            appCard.innerHTML = `
+              <div class="card h-100">
+                <div class="card-body text-center">
+                  <div class="app-logo mb-3">
+                    <img src="${logoUrl}" alt="${app.name}" class="img-fluid app-logo-img">
+                  </div>
+                  <h5 class="card-title">${app.name}</h5>
+                  <p class="card-text text-muted small">${app.description || 'No description available'}</p>
+                </div>
+                <div class="card-footer bg-transparent border-top-0 text-center">
+                  <a href="${appUrl}" class="btn btn-primary btn-sm" target="_blank">Launch App</a>
+                </div>
+              </div>
+            `;
+            
+            appContainer.appendChild(appCard);
+          });
+        }
+        
+        // Render connections
+        const connectionsContainer = document.getElementById('userConnections');
+        connectionsContainer.innerHTML = '';
+        
+        if (connections.length === 0) {
+          connectionsContainer.innerHTML = `
+            <li class="list-group-item">
+              <div class="alert alert-info mb-0">
+                No connected accounts found.
+              </div>
+            </li>
+          `;
+        } else {
+          connections.forEach(connection => {
+            const connectionItem = document.createElement('li');
+            connectionItem.className = 'list-group-item';
+            
+            connectionItem.innerHTML = `
+              <div class="d-flex align-items-center">
+                <div class="connection-icon me-3">
+                  <span class="badge bg-secondary">${connection.provider}</span>
+                </div>
+                <div>
+                  <div>${connection.provider.charAt(0).toUpperCase() + connection.provider.slice(1)}</div>
+                  <small class="text-muted">${connection.connection || 'Direct'}</small>
+                </div>
+              </div>
+            `;
+            
+            connectionsContainer.appendChild(connectionItem);
+          });
+        }
+      })
+      .catch(error => {
+        console.error('Error fetching apps:', error);
+        document.getElementById('appContainer').innerHTML = `
+          <div class="col-12">
+            <div class="alert alert-danger">
+              Error loading your applications. Please refresh the page or try again later.
+            </div>
+          </div>
+        `;
+      });
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
